@@ -10,6 +10,8 @@ import homeassistant.helpers.config_validation as cv
 from homeassistant.helpers.entity import Entity
 from homeassistant.util import slugify
 
+from threading import Lock, Timer
+
 DOMAIN = "lutron_custom"
 
 PLATFORMS = ["light", "cover", "switch", "scene", "binary_sensor"]
@@ -161,24 +163,33 @@ class LutronButton:
         self._button = button
         self._event = "lutron_event"
         self._full_id = slugify(f"{area_name} {name}")
+        self.lock = Lock()
+        self.timer = None
 
         button.subscribe(self.button_callback, None)
 
     def button_callback(self, button, context, event, params):
-        """Fire an event about a button being pressed or released."""
-        # Events per button type:
-        #   RaiseLower -> pressed/released
-        #   SingleAction -> single
-        _LOGGER.error("Lutron Button event: %s", str(event))
-        action = 'other'
-        if self._has_release_event:
+        with self.lock:
+            if self.timer:
+                self.timer.cancel()
+                self.timer = None
+
+            """Fire an event about a button being pressed or released."""
+            _LOGGER.info("Lutron Button %s event %s", self._full_id, str(event))
+            action = 'other'
             if event == Button.Event.PRESSED:
                 action = "pressed"
-            else:
-                action = "released"
-        elif event == Button.Event.PRESSED:
-            action = "single"
+                def func():
+                    with self.lock:
+                        self.timer = None
+                        _LOGGER.info("Lutron Button %s event %s", self._full_id, 'LONG_PRESSED')
+                        data = {ATTR_ID: self._id, ATTR_ACTION: "long_pressed", ATTR_FULL_ID: self._full_id}
+                        self._hass.bus.fire(self._event, data)
 
-        if action:
+                self.timer = Timer(0.5, func)
+                self.timer.start()
+            if event == Button.Event.RELEASED:
+                action = "released"
+            
             data = {ATTR_ID: self._id, ATTR_ACTION: action, ATTR_FULL_ID: self._full_id}
             self._hass.bus.fire(self._event, data)
