@@ -10,7 +10,7 @@ import homeassistant.helpers.config_validation as cv
 from homeassistant.helpers.entity import Entity
 from homeassistant.util import slugify
 
-DOMAIN = "lutron"
+DOMAIN = "lutron_custom"
 
 PLATFORMS = ["light", "cover", "switch", "scene", "binary_sensor"]
 
@@ -169,6 +169,7 @@ class LutronButton:
         # Events per button type:
         #   RaiseLower -> pressed/released
         #   SingleAction -> single
+        _LOGGER.error("Lutron Button event: %s", str(event))
         action = 'other'
         if self._has_release_event:
             if event == Button.Event.PRESSED:
