@@ -169,7 +169,7 @@ class LutronButton:
         # Events per button type:
         #   RaiseLower -> pressed/released
         #   SingleAction -> single
-        action = None
+        action = 'other'
         if self._has_release_event:
             if event == Button.Event.PRESSED:
                 action = "pressed"

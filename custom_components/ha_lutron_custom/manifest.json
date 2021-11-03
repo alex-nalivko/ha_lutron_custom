@@ -1,6 +1,6 @@
 {
-  "domain": "lutron",
-  "name": "Lutron",
+  "domain": "lutron_custom",
+  "name": "Lutron AlexCustom",
   "documentation": "https://www.home-assistant.io/integrations/lutron",
   "requirements": ["pylutron==0.2.8"],
   "codeowners": ["@JonGilmore"],
