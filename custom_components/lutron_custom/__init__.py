@@ -4,11 +4,13 @@ import logging
 from pylutron import Button, Lutron
 import voluptuous as vol
 
+from homeassistant.components import logbook
 from homeassistant.const import ATTR_ID, CONF_HOST, CONF_PASSWORD, CONF_USERNAME
 from homeassistant.helpers import discovery
 import homeassistant.helpers.config_validation as cv
 from homeassistant.helpers.entity import Entity
 from homeassistant.util import slugify
+
 
 from threading import Lock, Timer
 
@@ -169,27 +171,43 @@ class LutronButton:
         button.subscribe(self.button_callback, None)
 
     def button_callback(self, button, context, event, params):
+        """Fire an event about a button being pressed or released."""
+        _LOGGER.info("Lutron Button %s event %s", self._full_id, str(event))
+
         with self.lock:
             if self.timer:
                 self.timer.cancel()
                 self.timer = None
 
-            """Fire an event about a button being pressed or released."""
-            _LOGGER.info("Lutron Button %s event %s", self._full_id, str(event))
-            action = 'other'
             if event == Button.Event.PRESSED:
-                action = "pressed"
-                def func():
+                self.button_action("pressed")
+
+                def super_long_press_func():
                     with self.lock:
                         self.timer = None
-                        _LOGGER.info("Lutron Button %s event %s", self._full_id, 'LONG_PRESSED')
-                        data = {ATTR_ID: self._id, ATTR_ACTION: "long_pressed", ATTR_FULL_ID: self._full_id}
-                        self._hass.bus.fire(self._event, data)
+                        self.button_action("super_long_pressed")
 
-                self.timer = Timer(0.5, func)
+                def long_press_func():
+                    with self.lock:
+                        self.button_action("long_pressed")
+                        self.timer = Timer(1, super_long_press_func)
+                        self.timer.start()
+
+                self.timer = Timer(0.5, long_press_func)
                 self.timer.start()
             if event == Button.Event.RELEASED:
-                action = "released"
-            
-            data = {ATTR_ID: self._id, ATTR_ACTION: action, ATTR_FULL_ID: self._full_id}
-            self._hass.bus.fire(self._event, data)
+                self.button_action("released")
+
+    def button_action(self, action):
+        data = {
+            ATTR_ID: self._id, 
+            ATTR_ACTION: action, 
+            ATTR_FULL_ID: self._full_id,
+            'area_name': self._area_name,
+            'button_name': self._button_name
+
+        }
+        self._hass.bus.fire(self._event, data)
+        logbook.log_entry(self._hass, action, str(data), DOMAIN)
+
+
